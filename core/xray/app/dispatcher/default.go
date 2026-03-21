@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/InazumaV/V2bX/common/counter"
-	"github.com/InazumaV/V2bX/common/rate"
-	"github.com/InazumaV/V2bX/limiter"
+	"github.com/pkhosn/v2bx/common/counter"
+	"github.com/pkhosn/v2bx/common/rate"
+	"github.com/pkhosn/v2bx/limiter"
 
 	"github.com/xtls/xray-core/app/dispatcher"
 	"github.com/xtls/xray-core/common"

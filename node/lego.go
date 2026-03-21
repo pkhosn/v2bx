@@ -20,8 +20,8 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns"
 	"github.com/go-acme/lego/v4/registration"
 
-	"github.com/InazumaV/V2bX/common/file"
-	"github.com/InazumaV/V2bX/conf"
+	"github.com/pkhosn/v2bx/common/file"
+	"github.com/pkhosn/v2bx/conf"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/lego"
 )

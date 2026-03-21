@@ -6,7 +6,7 @@
 A V2board node server based on multi core, modified from XrayR.  
 一个基于多种内核的V2board节点服务端，修改自XrayR，支持V2ay,Trojan,Shadowsocks协议。
 
-**注意： 本项目需要搭配[修改版V2board](https://github.com/wyx2685/v2board)**
+**注意： 本项目需要搭配[修改版V2board](https://github.com/pkhosn/v2board)**
 
 ## 特点
 
@@ -47,7 +47,7 @@ A V2board node server based on multi core, modified from XrayR.
 ### 一键安装
 
 ```
-wget -N https://raw.githubusercontent.com/wyx2685/V2bX-script/master/install.sh && bash install.sh
+wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh && bash install.sh
 ```
 
 ### 手动安装
@@ -57,7 +57,7 @@ wget -N https://raw.githubusercontent.com/wyx2685/V2bX-script/master/install.sh 
 ## 构建
 ``` bash
 # 通过-tags选项指定要编译的内核， 可选 xray， sing, hysteria2
-GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor" -trimpath -ldflags "-X 'github.com/InazumaV/V2bX/cmd.version=$version' -s -w -buildid="
+GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 with_quic with_grpc with_utls with_wireguard with_acme with_gvisor" -trimpath -ldflags "-X 'github.com/pkhosn/v2bx/cmd.version=$version' -s -w -buildid="
 ```
 
 ## 配置文件及详细使用教程
@@ -86,4 +86,4 @@ GOEXPERIMENT=jsonv2 go build -v -o build_assets/V2bX -tags "sing xray hysteria2 
 
 ## Stars 增长记录
 
-[![Stargazers over time](https://starchart.cc/wyx2685/V2bX.svg)](https://starchart.cc/wyx2685/V2bX)
+[![Stargazers over time](https://starchart.cc/pkhosn/V2bX.svg)](https://starchart.cc/pkhosn/V2bX)

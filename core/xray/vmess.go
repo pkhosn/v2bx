@@ -1,8 +1,8 @@
 package xray
 
 import (
-	"github.com/InazumaV/V2bX/api/panel"
-	"github.com/InazumaV/V2bX/common/format"
+	"github.com/pkhosn/v2bx/api/panel"
+	"github.com/pkhosn/v2bx/common/format"
 	"github.com/xtls/xray-core/common/protocol"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/infra/conf"

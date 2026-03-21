@@ -6,12 +6,12 @@ import (
 	"net"
 	"sync"
 
-	"github.com/InazumaV/V2bX/common/format"
-	"github.com/InazumaV/V2bX/common/rate"
+	"github.com/pkhosn/v2bx/common/format"
+	"github.com/pkhosn/v2bx/common/rate"
 
-	"github.com/InazumaV/V2bX/limiter"
+	"github.com/pkhosn/v2bx/limiter"
 
-	"github.com/InazumaV/V2bX/common/counter"
+	"github.com/pkhosn/v2bx/common/counter"
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/log"
 	N "github.com/sagernet/sing/common/network"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/InazumaV/V2bX/common/exec"
+	"github.com/pkhosn/v2bx/common/exec"
 )
 
 const (

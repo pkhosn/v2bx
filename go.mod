@@ -1,4 +1,4 @@
-module github.com/InazumaV/V2bX
+module github.com/pkhosn/v2bx
 
 go 1.25
 

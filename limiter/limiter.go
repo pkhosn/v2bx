@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/InazumaV/V2bX/api/panel"
-	"github.com/InazumaV/V2bX/common/format"
-	"github.com/InazumaV/V2bX/conf"
+	"github.com/pkhosn/v2bx/api/panel"
+	"github.com/pkhosn/v2bx/common/format"
+	"github.com/pkhosn/v2bx/conf"
 	"github.com/juju/ratelimit"
 )
 
