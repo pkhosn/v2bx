@@ -65,7 +65,7 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
 
 ### vmess TLS 自动证书模板（http/dns）
 
-以下模板用于新增 vmess TLS 节点（示例域名 `vme.6600077.xyz`）。
+以下模板用于新增 vmess TLS 节点（示例域名 `vmess.example.com`）。
 
 - 将 `NodeID` 改为面板中该 vmess 节点的实际 ID
 - `ApiHost`、`ApiKey` 改为你自己的面板地址和 `SERVER_TOKEN`
@@ -76,8 +76,8 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
 ```json
 {
   "Core": "xray",
-  "ApiHost": "http://v2et-board.xizdj.com",
-  "ApiKey": "v2etNodeToken_2026_Example_ABC123",
+  "ApiHost": "https://your-panel-domain",
+  "ApiKey": "YOUR_SERVER_TOKEN",
   "NodeID": 1,
   "NodeType": "vmess",
   "Timeout": 30,
@@ -92,10 +92,10 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
   "CertConfig": {
     "CertMode": "http",
     "RejectUnknownSni": false,
-    "CertDomain": "vme.6600077.xyz",
-    "CertFile": "/etc/V2bX/certs/vme.6600077.xyz.crt",
-    "KeyFile": "/etc/V2bX/certs/vme.6600077.xyz.key",
-    "Email": "admin@6600077.xyz"
+    "CertDomain": "vmess.example.com",
+    "CertFile": "/etc/V2bX/certs/vmess.example.com.crt",
+    "KeyFile": "/etc/V2bX/certs/vmess.example.com.key",
+    "Email": "admin@example.com"
   }
 }
 ```
@@ -105,8 +105,8 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
 ```json
 {
   "Core": "xray",
-  "ApiHost": "http://v2et-board.xizdj.com",
-  "ApiKey": "v2etNodeToken_2026_Example_ABC123",
+  "ApiHost": "https://your-panel-domain",
+  "ApiKey": "YOUR_SERVER_TOKEN",
   "NodeID": 1,
   "NodeType": "vmess",
   "Timeout": 30,
@@ -121,10 +121,10 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
   "CertConfig": {
     "CertMode": "dns",
     "RejectUnknownSni": false,
-    "CertDomain": "vme.6600077.xyz",
-    "CertFile": "/etc/V2bX/certs/vme.6600077.xyz.crt",
-    "KeyFile": "/etc/V2bX/certs/vme.6600077.xyz.key",
-    "Email": "admin@6600077.xyz",
+    "CertDomain": "vmess.example.com",
+    "CertFile": "/etc/V2bX/certs/vmess.example.com.crt",
+    "KeyFile": "/etc/V2bX/certs/vmess.example.com.key",
+    "Email": "admin@example.com",
     "Provider": "cloudflare",
     "DNSEnv": {
       "CF_DNS_API_TOKEN": "YOUR_CLOUDFLARE_TOKEN"
