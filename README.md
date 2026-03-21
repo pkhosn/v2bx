@@ -63,6 +63,84 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
 - 一键安装文档：[`docs/xrayr-xia-zai-he-an-zhuang/install/one-click.md`](docs/xrayr-xia-zai-he-an-zhuang/install/one-click.md)
 - 手动安装文档：[`docs/xrayr-xia-zai-he-an-zhuang/install/manual.md`](docs/xrayr-xia-zai-he-an-zhuang/install/manual.md)
 
+### vmess TLS 自动证书模板（http/dns）
+
+以下模板用于新增 vmess TLS 节点（示例域名 `vme.6600077.xyz`）。
+
+- 将 `NodeID` 改为面板中该 vmess 节点的实际 ID
+- `ApiHost`、`ApiKey` 改为你自己的面板地址和 `SERVER_TOKEN`
+- `http` 模式需要 80 端口可达；`dns` 模式需要 DNS API 凭据
+
+#### http 模式（HTTP-01）
+
+```json
+{
+  "Core": "xray",
+  "ApiHost": "http://v2et-board.xizdj.com",
+  "ApiKey": "v2etNodeToken_2026_Example_ABC123",
+  "NodeID": 1,
+  "NodeType": "vmess",
+  "Timeout": 30,
+  "ListenIP": "0.0.0.0",
+  "SendIP": "0.0.0.0",
+  "DeviceOnlineMinTraffic": 200,
+  "MinReportTraffic": 0,
+  "EnableProxyProtocol": false,
+  "EnableUot": true,
+  "EnableTFO": true,
+  "DNSType": "UseIPv4",
+  "CertConfig": {
+    "CertMode": "http",
+    "RejectUnknownSni": false,
+    "CertDomain": "vme.6600077.xyz",
+    "CertFile": "/etc/V2bX/certs/vme.6600077.xyz.crt",
+    "KeyFile": "/etc/V2bX/certs/vme.6600077.xyz.key",
+    "Email": "admin@6600077.xyz"
+  }
+}
+```
+
+#### dns 模式（DNS-01，以 Cloudflare 为例）
+
+```json
+{
+  "Core": "xray",
+  "ApiHost": "http://v2et-board.xizdj.com",
+  "ApiKey": "v2etNodeToken_2026_Example_ABC123",
+  "NodeID": 1,
+  "NodeType": "vmess",
+  "Timeout": 30,
+  "ListenIP": "0.0.0.0",
+  "SendIP": "0.0.0.0",
+  "DeviceOnlineMinTraffic": 200,
+  "MinReportTraffic": 0,
+  "EnableProxyProtocol": false,
+  "EnableUot": true,
+  "EnableTFO": true,
+  "DNSType": "UseIPv4",
+  "CertConfig": {
+    "CertMode": "dns",
+    "RejectUnknownSni": false,
+    "CertDomain": "vme.6600077.xyz",
+    "CertFile": "/etc/V2bX/certs/vme.6600077.xyz.crt",
+    "KeyFile": "/etc/V2bX/certs/vme.6600077.xyz.key",
+    "Email": "admin@6600077.xyz",
+    "Provider": "cloudflare",
+    "DNSEnv": {
+      "CF_DNS_API_TOKEN": "YOUR_CLOUDFLARE_TOKEN"
+    }
+  }
+}
+```
+
+配置完成后执行：
+
+```bash
+mkdir -p /etc/V2bX/certs
+systemctl restart V2bX
+journalctl -u V2bX -f
+```
+
 ## 构建
 ``` bash
 # 通过-tags选项指定要编译的内核， 可选 xray， sing, hysteria2
