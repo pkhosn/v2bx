@@ -56,12 +56,12 @@ wget -N https://raw.githubusercontent.com/pkhosn/V2bX-script/master/install.sh &
 
 ### 文档中心（V2bX_doc）
 
-已将 `wyx2685/V2bX_doc` 文档仓库完整复制到本项目，便于直接在 `pkhosn/v2bx` 内查看安装与配置文档。
+已将 `wyx2685/V2bX_doc` 文档仓库完整复制到本项目 `docs/` 目录，便于直接在 `pkhosn/v2bx` 内查看安装与配置文档。
 
-- 文档首页：[`docs/V2bX_doc/README.md`](docs/V2bX_doc/README.md)
-- 文档目录：[`docs/V2bX_doc/SUMMARY.md`](docs/V2bX_doc/SUMMARY.md)
-- 一键安装文档：[`docs/V2bX_doc/xrayr-xia-zai-he-an-zhuang/install/one-click.md`](docs/V2bX_doc/xrayr-xia-zai-he-an-zhuang/install/one-click.md)
-- 手动安装文档：[`docs/V2bX_doc/xrayr-xia-zai-he-an-zhuang/install/manual.md`](docs/V2bX_doc/xrayr-xia-zai-he-an-zhuang/install/manual.md)
+- 文档首页：[`docs/README.md`](docs/README.md)
+- 文档目录：[`docs/SUMMARY.md`](docs/SUMMARY.md)
+- 一键安装文档：[`docs/xrayr-xia-zai-he-an-zhuang/install/one-click.md`](docs/xrayr-xia-zai-he-an-zhuang/install/one-click.md)
+- 手动安装文档：[`docs/xrayr-xia-zai-he-an-zhuang/install/manual.md`](docs/xrayr-xia-zai-he-an-zhuang/install/manual.md)
 
 ## 构建
 ``` bash
