@@ -1,0 +1,45 @@
+{
+  "Log": {
+    "Level": "info",
+    "Output": ""
+  },
+  "Cores": [
+    {
+      "Type": "sing",
+      "Log": {
+        "Level": "info",
+        "Timestamp": true
+      },
+      "NTP": {
+        "Enable": false,
+        "Server": "time.apple.com",
+        "ServerPort": 0
+      },
+      "OriginalPath": "/etc/V2bX/sing_origin.json"
+    }
+  ],
+  "Nodes": [
+    {
+      "Core": "sing",
+      "ApiHost": "https://your-panel-domain",
+      "ApiKey": "YOUR_SERVER_TOKEN",
+      "NodeID": 6,
+      "NodeType": "shadowsocks",
+      "Timeout": 30,
+      "ListenIP": "0.0.0.0",
+      "SendIP": "0.0.0.0",
+      "DeviceOnlineMinTraffic": 200,
+      "MinReportTraffic": 0,
+      "TCPFastOpen": true,
+      "SniffEnabled": true,
+      "CertConfig": {
+        "CertMode": "http",
+        "RejectUnknownSni": false,
+        "CertDomain": "node.example.com",
+        "CertFile": "/etc/V2bX/fullchain.cer",
+        "KeyFile": "/etc/V2bX/cert.key",
+        "Email": "admin@example.com"
+      }
+    }
+  ]
+}
