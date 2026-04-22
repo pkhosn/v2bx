@@ -37,6 +37,15 @@ A V2board node server based on multi core, modified from XrayR.
 | 按照用户限速    | √     | √      | √           | √         |
 | 动态限速(未测试) | √     | √      | √           | √         |
 
+## 推荐协议配置（中国网络环境，2026-04）
+
+以下为兼顾长期可维护性、稳定性与抗干扰能力的推荐顺序（建议主备并行部署）：
+
+1. 主力：`VLESS + REALITY + XHTTP`（TCP 系）
+2. 主备：`VLESS + WS + TLS + Cloudflare（橙云）+ ECH`
+3. 兼容备份：`Trojan + WS + TLS + Cloudflare（橙云）+ ECH`
+4. 速度备线（不建议单独作为主力）：`Hysteria2` 或 `TUIC`（QUIC/UDP）
+
 ## TODO
 
 - [ ] 重新实现动态限速
