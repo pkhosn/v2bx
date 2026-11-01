@@ -85,7 +85,7 @@ func serverHandle(_ *cobra.Command, _ []string) {
 	xdns := os.Getenv("XRAY_DNS_PATH")
 	sdns := os.Getenv("SING_DNS_PATH")
 	if watch {
-		err = c.Watch(config, xdns, sdns, func() {
+		stopWatch, watchErr := c.WatchWithCancel(config, xdns, sdns, func() {
 			nodes.Close()
 			err = vc.Close()
 			if err != nil {
@@ -111,10 +111,11 @@ func serverHandle(_ *cobra.Command, _ []string) {
 			log.Info("Nodes restarted")
 			runtime.GC()
 		})
-		if err != nil {
-			log.WithField("err", err).Error("start watch failed")
+		if watchErr != nil {
+			log.WithField("err", watchErr).Error("start watch failed")
 			return
 		}
+		defer stopWatch()
 	}
 	// clear memory
 	runtime.GC()

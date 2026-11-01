@@ -33,3 +33,21 @@ func Test_generateSelfSslCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSelfCertificateClosesFiles(t *testing.T) {
+	dir := t.TempDir()
+	certPath, keyPath := filepath.Join(dir, "cert.pem"), filepath.Join(dir, "key.pem")
+	for i := 0; i < 2; i++ {
+		if err := generateSelfSslCertificate("example.com", certPath, keyPath); err != nil {
+			t.Fatal(err)
+		}
+		assertNoOpenFiles(t, dir)
+		if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := generateSelfSslCertificate("example.com", certPath, filepath.Join(dir, "missing", "key.pem")); err == nil {
+		t.Fatal("missing key directory should fail")
+	}
+	assertNoOpenFiles(t, dir)
+}

@@ -20,10 +20,10 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns"
 	"github.com/go-acme/lego/v4/registration"
 
-	"github.com/pkhosn/v2bx/common/file"
-	"github.com/pkhosn/v2bx/conf"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/lego"
+	"github.com/pkhosn/v2bx/common/file"
+	"github.com/pkhosn/v2bx/conf"
 )
 
 type Lego struct {
@@ -246,21 +246,28 @@ func (u *User) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("check path error: %s", err)
 	}
-	u.KeyEncoded, _ = EncodePrivate(u.key.(*ecdsa.PrivateKey))
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+	key, ok := u.key.(*ecdsa.PrivateKey)
+	if !ok || key == nil {
+		return fmt.Errorf("invalid account private key")
 	}
-	err = json.NewEncoder(f).Encode(u)
+	encoded, err := EncodePrivate(key)
+	if err != nil {
+		return fmt.Errorf("encode private key error: %s", err)
+	}
+	saved := *u
+	saved.KeyEncoded = encoded
+	data, err := json.Marshal(&saved)
 	if err != nil {
 		return fmt.Errorf("marshal json error: %s", err)
 	}
-	u.KeyEncoded = ""
-	return nil
+	return os.WriteFile(path, append(data, '\n'), 0644)
 }
 
 func (u *User) DecodePrivate(pemEncodedPriv string) (*ecdsa.PrivateKey, error) {
 	blockPriv, _ := pem.Decode([]byte(pemEncodedPriv))
+	if blockPriv == nil {
+		return nil, fmt.Errorf("invalid private key PEM")
+	}
 	x509EncodedPriv := blockPriv.Bytes
 	privateKey, err := x509.ParseECPrivateKey(x509EncodedPriv)
 	return privateKey, err

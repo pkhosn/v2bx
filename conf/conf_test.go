@@ -31,12 +31,13 @@ func TestConf_WatchRejectsInvalidConfig(t *testing.T) {
 			}
 			original := *c
 			reloaded := make(chan struct{}, 1)
-			if err := c.Watch(configPath, "", "", func() {
+			stop, err := c.WatchWithCancel(configPath, "", "", func() {
 				reloaded <- struct{}{}
-			}); err != nil {
+			})
+			if err != nil {
 				t.Fatal(err)
 			}
-			var err error
+			t.Cleanup(stop)
 			if scenario == "missing_file" {
 				err = os.Remove(configPath)
 			} else {
@@ -89,11 +90,13 @@ func TestConf_Watch(t *testing.T) {
 			}
 			c := New()
 			reloaded := make(chan string, 1)
-			if err := c.Watch(configPath, xrayDNS, singDNS, func() {
+			stop, err := c.WatchWithCancel(configPath, xrayDNS, singDNS, func() {
 				reloaded <- c.LogConfig.Level
-			}); err != nil {
+			})
+			if err != nil {
 				t.Fatal(err)
 			}
+			t.Cleanup(stop)
 			if source == "config" {
 				writeFile(changedPath, `{"Log":{"Level":"debug"}}`)
 			} else {
@@ -110,5 +113,67 @@ func TestConf_Watch(t *testing.T) {
 				t.Fatal("file change did not reload config within 10 seconds")
 			}
 		})
+	}
+}
+
+func TestConf_WatchLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	countWatchers := func() int {
+		t.Helper()
+		entries, err := os.ReadDir("/proc/self/fd")
+		if err != nil {
+			t.Skip("watcher descriptor check requires procfs")
+		}
+		count := 0
+		for _, entry := range entries {
+			target, _ := os.Readlink(filepath.Join("/proc/self/fd", entry.Name()))
+			if target == "anon_inode:inotify" {
+				count++
+			}
+		}
+		return count
+	}
+	before := countWatchers()
+	c := New()
+	for _, paths := range [][3]string{
+		{filepath.Join(dir, "missing"), "", ""},
+		{configPath, filepath.Join(dir, "missing"), ""},
+		{configPath, "", filepath.Join(dir, "missing")},
+	} {
+		stop, err := c.WatchWithCancel(paths[0], paths[1], paths[2], func() {})
+		if err == nil || stop != nil {
+			t.Fatal("missing watch path should fail")
+		}
+		if got := countWatchers(); got != before {
+			t.Fatalf("failed setup leaked watchers: %d -> %d", before, got)
+		}
+	}
+	reloaded := make(chan struct{}, 1)
+	stop, err := c.WatchWithCancel(configPath, "", "", func() { reloaded <- struct{}{} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(stop)
+	if err := os.WriteFile(configPath, []byte(`{"Log":{"Level":"debug"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Let fsnotify deliver the write so cancellation also exercises a pending reload.
+	time.Sleep(100 * time.Millisecond)
+	stop()
+	stop()
+	if got := countWatchers(); got != before {
+		t.Fatalf("stop leaked watchers: %d -> %d", before, got)
+	}
+	select {
+	case <-reloaded:
+		t.Fatal("reload ran after cancellation")
+	case <-time.After(6 * time.Second):
+	}
+	if c.LogConfig.Level != "info" {
+		t.Fatal("cancelled reload changed configuration")
 	}
 }

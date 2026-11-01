@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,5 +139,53 @@ func TestLegoUser_SaveLoad(t *testing.T) {
 	restored, ok := loaded.GetPrivateKey().(*ecdsa.PrivateKey)
 	if !ok || !key.Equal(restored) || loaded.GetEmail() != original.Email {
 		t.Fatal("account email or private key did not survive save/load")
+	}
+}
+
+func TestUser_DecodePrivateRejectsInvalidPEM(t *testing.T) {
+	for _, body := range []string{"", "not PEM", "-----BEGIN EC PRIVATE KEY-----\nbroken\n-----END EC PRIVATE KEY-----", string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: []byte("invalid DER")}))} {
+		if _, err := (&User{}).DecodePrivate(body); err == nil {
+			t.Fatal("invalid key should return an error")
+		}
+	}
+	path := filepath.Join(t.TempDir(), "account.json")
+	if err := os.WriteFile(path, []byte(`{"Email":"admin@example.com","Key":"broken"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewLegoUser(path, "admin@example.com"); err == nil {
+		t.Fatal("corrupt account should fail locally")
+	}
+}
+
+func assertNoOpenFiles(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Skip("file descriptor check requires procfs")
+	}
+	for _, entry := range entries {
+		target, _ := os.Readlink(filepath.Join("/proc/self/fd", entry.Name()))
+		relative, err := filepath.Rel(dir, target)
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+			t.Errorf("file descriptor still open: %s", target)
+		}
+	}
+}
+
+func TestUser_SaveClosesFiles(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	user := &User{Email: "admin@example.com", key: key}
+	for i := 0; i < 5; i++ {
+		if err := user.Save(filepath.Join(dir, "account.json")); err != nil {
+			t.Fatal(err)
+		}
+		assertNoOpenFiles(t, dir)
+	}
+	if user.KeyEncoded != "" {
+		t.Fatal("Save retained encoded private key")
 	}
 }
