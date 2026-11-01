@@ -3,6 +3,7 @@ package conf
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -14,6 +15,52 @@ func TestConf_LoadFromPath(t *testing.T) {
 	}
 	if len(c.CoresConfig) == 0 || len(c.NodeConfig) == 0 {
 		t.Fatal("example config should contain cores and nodes")
+	}
+}
+
+func TestConf_WatchRejectsInvalidConfig(t *testing.T) {
+	for _, scenario := range []string{"invalid_json", "invalid_field", "missing_file"} {
+		t.Run(scenario, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "config.json")
+			if err := os.WriteFile(configPath, []byte(`{"Log":{"Level":"debug"},"Cores":[{"Type":"xray"}],"Nodes":[{"NodeID":42}]}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			c := New()
+			if err := c.LoadFromPath(configPath); err != nil {
+				t.Fatal(err)
+			}
+			original := *c
+			reloaded := make(chan struct{}, 1)
+			if err := c.Watch(configPath, "", "", func() {
+				reloaded <- struct{}{}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			if scenario == "missing_file" {
+				err = os.Remove(configPath)
+			} else {
+				body := `{"Log":`
+				if scenario == "invalid_field" {
+					body = `{"Log":{"Level":"error"},"Cores":"invalid"}`
+				}
+				err = os.WriteFile(configPath, []byte(body), 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Watch waits five seconds before loading the changed file.
+			timer := time.NewTimer(7 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-reloaded:
+				t.Fatal("invalid config triggered a restart callback")
+			case <-timer.C:
+			}
+			if !reflect.DeepEqual(*c, original) {
+				t.Fatal("invalid config replaced the running config")
+			}
+		})
 	}
 }
 
