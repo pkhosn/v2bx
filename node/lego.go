@@ -111,10 +111,12 @@ func (l *Lego) RenewCert() error {
 	if err != nil {
 		return fmt.Errorf("read cert file error: %s", err)
 	}
-	if e, err := l.CheckCert(file); !e {
-		return nil
-	} else if err != nil {
+	renew, err := l.CheckCert(file)
+	if err != nil {
 		return fmt.Errorf("check cert error: %s", err)
+	}
+	if !renew {
+		return nil
 	}
 	res, err := l.client.Certificate.Renew(certificate.Resource{
 		Domain:      l.config.CertDomain,
