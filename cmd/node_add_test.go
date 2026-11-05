@@ -85,18 +85,21 @@ func TestWizardFailureNeverSaves(t *testing.T) {
 		t.Skip("no compiled core")
 	}
 	c := registered[0]
-	protocol := "vmess"
+	selection := "1\n1\n3\n"
+	if c == "sing" {
+		selection = "2\n1\n3\n"
+	}
 	if c == "hysteria2" {
-		protocol = "hysteria2"
+		selection = "3\n1\n"
 	}
 	for _, failure := range []string{"panel", "cert", "eof"} {
 		t.Run(failure, func(t *testing.T) {
 			p := filepath.Join(t.TempDir(), "config.json")
 			original := []byte(`{"Cores":[],"Nodes":[],"Future":true}`)
 			os.WriteFile(p, original, 0600)
-			input := "https://panel.example\nsecret\n" + protocol + "\n1\n" + c + "\n"
+			input := "https://panel.example\nsecret\nn\n" + selection
 			if failure == "cert" {
-				input += "example.com\n3\n"
+				input += "3\nexample.com\n"
 			}
 			r := strings.NewReader(input)
 			w := &nodeWizard{input: r, in: bufio.NewReader(r), out: &bytes.Buffer{}, fetch: func(*conf.ApiConfig) (*panel.NodeInfo, error) {
@@ -145,14 +148,17 @@ func TestWizardSuccessfulAppend(t *testing.T) {
 		t.Skip("no compiled core")
 	}
 	c := registered[0]
-	protocol := "vmess"
+	selection := "1\n1\n3\n"
+	if c == "sing" {
+		selection = "2\n1\n3\n"
+	}
 	if c == "hysteria2" {
-		protocol = "hysteria2"
+		selection = "3\n1\n"
 	}
 	p := filepath.Join(t.TempDir(), "config.json")
 	original := []byte(`{"Cores":[],"Nodes":[],"Future":{"enabled":true}}`)
 	os.WriteFile(p, original, 0600)
-	r := strings.NewReader("https://panel.example\nsecret\n" + protocol + "\n1\n" + c + "\nn\n")
+	r := strings.NewReader("https://panel.example\nsecret\nn\n" + selection + "n\n")
 	w := &nodeWizard{input: r, in: bufio.NewReader(r), out: &bytes.Buffer{}, fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
 		if a.Key != "secret" || a.NodeID != 1 {
 			t.Fatal("wrong panel request")
@@ -181,7 +187,7 @@ func TestWizardSuccessfulAppend(t *testing.T) {
 	}
 }
 func TestDNSWizardCapturesCredentials(t *testing.T) {
-	r := strings.NewReader("node.example.com\n2\nadmin@example.com\nprivate-token\n")
+	r := strings.NewReader("2\nnode.example.com\nadmin@example.com\nprivate-token\n")
 	w := &nodeWizard{input: r, in: bufio.NewReader(r), out: &bytes.Buffer{}}
 	c, err := w.certificate(&panel.NodeInfo{Security: panel.Tls}, &configDocument{}, t.TempDir())
 	if err != nil {
@@ -209,5 +215,73 @@ func TestAppendPinsImplicitSingleCore(t *testing.T) {
 	}
 	if old.Options.Core != "xray" || old.Options.CoreName != "original" {
 		t.Fatal("old node core selection changed")
+	}
+}
+
+func TestHTTPEmailCanBeEmptyOrCorrected(t *testing.T) {
+	for _, tc := range []struct{ name, input, email string }{
+		{"empty", "1\nnode.example.com\n\n", ""},
+		{"retry", "9\n1\nhttps://bad.example\nnode.example.com\nwrong\nadmin@example.com\n", "admin@example.com"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := strings.NewReader(tc.input)
+			out := &bytes.Buffer{}
+			w := &nodeWizard{input: r, in: bufio.NewReader(r), out: out}
+			c, err := w.certificate(&panel.NodeInfo{Security: panel.Tls}, &configDocument{}, t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Email != tc.email || c.CertMode != "http" || c.CertDomain != "node.example.com" {
+				t.Fatalf("unexpected config: %+v", c)
+			}
+			text := out.String()
+			if strings.Index(text, "请选择证书申请模式") > strings.Index(text, "请输入节点证书域名") {
+				t.Fatal("legacy prompt order changed")
+			}
+		})
+	}
+}
+
+func TestLegacyNumericMenusAndFixedPanel(t *testing.T) {
+	registered := core.RegisteredCore()
+	haveXray, haveSing := false, false
+	for _, c := range registered {
+		haveXray = haveXray || c == "xray"
+		haveSing = haveSing || c == "sing"
+	}
+	if !haveXray || !haveSing {
+		t.Skip("requires xray and sing build tags")
+	}
+	p := filepath.Join(t.TempDir(), "config.json")
+	// The original flow: panel, key, fixed panel, core, ID, protocol;
+	// Enter continues and reuses the fixed panel, then selects another core.
+	r := strings.NewReader("https://panel.example\nsecret\ny\n9\n1\nwrong\n1\n8\n3\n\n2\n2\n5\nn\n")
+	out := &bytes.Buffer{}
+	requests := []conf.ApiConfig{}
+	w := &nodeWizard{input: r, in: bufio.NewReader(r), out: out,
+		fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
+			requests = append(requests, *a)
+			return &panel.NodeInfo{Security: panel.None}, nil
+		},
+		ensure: func(*conf.CertConfig) error { return nil },
+	}
+	if err := w.run(p, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 2 || requests[0].NodeType != "vmess" || requests[1].NodeType != "hysteria2" || requests[1].Key != "secret" {
+		t.Fatalf("wrong selections: %+v", requests)
+	}
+	text := out.String()
+	if strings.Count(text, "请输入机场网址") != 1 {
+		t.Fatal("fixed panel was not reused")
+	}
+	for _, label := range []string{"1. xray", "2. singbox", "3. hysteria2", "1. Shadowsocks", "2. Vless", "3. Vmess", "5. Hysteria2"} {
+		if !strings.Contains(text, label) {
+			t.Fatal("missing legacy menu", label)
+		}
+	}
+	coreAt, idAt, protocolAt := strings.Index(text, "请选择节点核心类型"), strings.Index(text, "请输入节点Node ID"), strings.Index(text, "请选择节点传输协议")
+	if !(coreAt < idAt && idAt < protocolAt) {
+		t.Fatal("legacy selection order changed")
 	}
 }

@@ -248,6 +248,13 @@ type nodeWizard struct {
 	ensure func(*conf.CertConfig) error
 }
 
+// Match the existing management script's ANSI palette.
+const (
+	wizardGreen  = "\033[0;32m"
+	wizardYellow = "\033[0;33m"
+	wizardPlain  = "\033[0m"
+)
+
 func (w *nodeWizard) ask(label, fallback string, secret bool) (string, error) {
 	fmt.Fprint(w.out, label)
 	if fallback != "" {
@@ -274,6 +281,85 @@ func (w *nodeWizard) ask(label, fallback string, secret bool) (string, error) {
 	}
 	return s, nil
 }
+
+// choose retains the numeric choices and labels from the management script.
+// Invalid input stays at the current step instead of discarding prior answers.
+func (w *nodeWizard) choose(title string, labels, values []string, fallback string) (string, error) {
+	color := wizardYellow
+	if title == "请选择节点核心类型：" {
+		color = wizardGreen
+	}
+	fmt.Fprintln(w.out, color+title+wizardPlain)
+	for i, label := range labels {
+		if label != "" {
+			fmt.Fprintf(w.out, "%s%d. %s%s\n", wizardGreen, i+1, label, wizardPlain)
+		}
+	}
+	for {
+		answer, err := w.ask("请输入", fallback, false)
+		if err != nil {
+			return "", err
+		}
+		number, err := strconv.Atoi(answer)
+		if err == nil && number > 0 && number <= len(values) && values[number-1] != "" {
+			return values[number-1], nil
+		}
+		fmt.Fprintln(w.out, "无效的选择，请输入上方菜单中的数字。")
+	}
+}
+func (w *nodeWizard) yesNo(label, fallback string) (bool, error) {
+	for {
+		answer, err := w.ask(label, fallback, false)
+		if err != nil {
+			return false, err
+		}
+		switch strings.ToLower(answer) {
+		case "y", "yes":
+			return true, nil
+		case "n", "no":
+			return false, nil
+		}
+		fmt.Fprintln(w.out, "请输入 y 或 n。")
+	}
+}
+func (w *nodeWizard) nodeSelection() (string, string, int, error) {
+	coreType, err := w.choose("请选择节点核心类型：", []string{"xray", "singbox", "hysteria2"}, []string{"xray", "sing", "hysteria2"}, "")
+	if err != nil {
+		return "", "", 0, err
+	}
+	registered := false
+	for _, c := range core.RegisteredCore() {
+		if c == coreType {
+			registered = true
+		}
+	}
+	if !registered {
+		return "", "", 0, fmt.Errorf("当前二进制未编译 %s 内核，请安装完整版", coreType)
+	}
+	var id int
+	for {
+		answer, e := w.ask("请输入节点Node ID", "", false)
+		if e != nil {
+			return "", "", 0, e
+		}
+		id, e = strconv.Atoi(answer)
+		if e == nil && id > 0 {
+			break
+		}
+		fmt.Fprintln(w.out, "错误：请输入正整数作为Node ID。")
+	}
+	protocol := "hysteria2"
+	if coreType != "hysteria2" {
+		labels := []string{"Shadowsocks", "Vless", "Vmess", "", "", "Trojan", "", ""}
+		values := []string{"shadowsocks", "vless", "vmess", "", "", "trojan", "", ""}
+		if coreType == "sing" {
+			labels[3], labels[4], labels[6], labels[7] = "Hysteria", "Hysteria2", "Tuic", "AnyTLS"
+			values[3], values[4], values[6], values[7] = "hysteria", "hysteria2", "tuic", "anytls"
+		}
+		protocol, err = w.choose("请选择节点传输协议：", labels, values, "")
+	}
+	return coreType, protocol, id, err
+}
 func (w *nodeWizard) certificate(info *panel.NodeInfo, d *configDocument, dir string) (*conf.CertConfig, error) {
 	c := conf.NewCertConfig()
 	if info.Security != panel.Tls {
@@ -287,31 +373,40 @@ func (w *nodeWizard) certificate(info *panel.NodeInfo, d *configDocument, dir st
 		domain = info.VAllss.TlsSettings.ServerName
 	}
 	var err error
-	domain, err = w.ask("证书域名", domain, false)
+	mode, err := w.choose("请选择证书申请模式：", []string{
+		"http模式自动申请，节点域名已正确解析（本机80端口可用）",
+		"dns模式自动申请（Cloudflare）",
+		"self模式，自签证书",
+		"提供已有证书文件",
+	}, []string{"1", "2", "3", "4"}, "1")
 	if err != nil {
 		return nil, err
 	}
-	domain = strings.ToLower(strings.TrimSuffix(domain, "."))
-	if !validDomain(domain) {
-		return nil, fmt.Errorf("请输入有效的证书域名（不带协议或路径）")
+	for {
+		domain, err = w.ask("请输入节点证书域名(example.com)", domain, false)
+		if err != nil {
+			return nil, err
+		}
+		domain = strings.ToLower(strings.TrimSuffix(domain, "."))
+		if validDomain(domain) {
+			break
+		}
+		fmt.Fprintln(w.out, "请输入有效的证书域名（不带协议或路径）。")
+		domain = ""
 	}
 	for _, n := range d.parsed {
 		old := n.Options.CertConfig
 		if old != nil && old.CertDomain == domain && (old.CertMode == "http" || old.CertMode == "dns") && node.ValidateCertificate(old) == nil {
-			reply, e := w.ask("找到同域名有效证书，复用证书与续期配置？y/n", "y", false)
+			reuse, e := w.yesNo("找到同域名有效证书，是否复用", "y")
 			if e != nil {
 				return nil, e
 			}
-			if reply == "y" {
+			if reuse {
 				copy := *old
 				return &copy, nil
 			}
 			break
 		}
-	}
-	mode, err := w.ask("证书模式：1 HTTP自动申请（域名直连本机、80端口可用）；2 Cloudflare DNS自动申请；3 自签；4 已有文件", "1", false)
-	if err != nil {
-		return nil, err
 	}
 	c.CertDomain = domain
 	switch mode {
@@ -355,13 +450,26 @@ func (w *nodeWizard) certificate(info *panel.NodeInfo, d *configDocument, dir st
 		c.KeyFile = filepath.Join(certDir, "cert.key")
 	}
 	if c.CertMode == "http" || c.CertMode == "dns" {
-		c.Email, err = w.ask("ACME联系邮箱（用于证书到期通知）", "", false)
-		if err != nil {
-			return nil, err
+		fallbackEmail := ""
+		for _, n := range d.parsed {
+			if old := n.Options.CertConfig; old != nil && old.Email != "" && old.Email != "v2bx@github.com" {
+				fallbackEmail = old.Email
+				break
+			}
 		}
-		address, e := mail.ParseAddress(c.Email)
-		if e != nil || address.Address != c.Email {
-			return nil, fmt.Errorf("邮箱格式无效")
+		for {
+			c.Email, err = w.ask("ACME联系邮箱（可留空，回车使用已有邮箱或不设置）", fallbackEmail, false)
+			if err != nil {
+				return nil, err
+			}
+			if c.Email == "" {
+				break
+			}
+			address, e := mail.ParseAddress(c.Email)
+			if e == nil && address.Address == c.Email {
+				break
+			}
+			fmt.Fprintln(w.out, "邮箱格式无效，请重新输入；也可留空。")
 		}
 	}
 	if c.CertMode == "dns" {
@@ -440,80 +548,79 @@ func (w *nodeWizard) run(path string, replace bool) error {
 	if err != nil {
 		return fmt.Errorf("原配置无法读取: %w", err)
 	}
+	fmt.Fprintln(w.out, wizardYellow+"V2bX 配置文件生成向导"+wizardPlain)
+	if !replace {
+		fmt.Fprintf(w.out, "本次追加节点，保留已有 %d 个节点。\n", len(d.nodes))
+	}
+	fixedAPI := false
+	var fixedConfig conf.ApiConfig
+	firstNode := true
 	for {
 		a := conf.ApiConfig{Timeout: 30}
-		fallback := ""
-		if len(d.parsed) > 0 {
-			fallback = d.parsed[len(d.parsed)-1].ApiConfig.APIHost
-		}
-		a.APIHost, err = w.ask("面板地址", fallback, false)
-		if err != nil {
-			return err
-		}
-		u, e := url.Parse(a.APIHost)
-		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.RawQuery != "" || u.User != nil || u.Fragment != "" {
-			return fmt.Errorf("无效面板地址")
-		}
-		a.APIHost = strings.TrimRight(a.APIHost, "/")
-		reused := false
-		for _, n := range d.parsed {
-			if normalizedHost(n.ApiConfig.APIHost) == normalizedHost(a.APIHost) {
-				answer, e := w.ask("复用该面板已有API Key？y/n", "y", false)
-				if e != nil {
-					return e
+		if fixedAPI {
+			a = fixedConfig
+		} else {
+			fallback := ""
+			if len(d.parsed) > 0 {
+				fallback = d.parsed[len(d.parsed)-1].ApiConfig.APIHost
+			}
+			for {
+				a.APIHost, err = w.ask("请输入机场网址(https://example.com)", fallback, false)
+				if err != nil {
+					return err
 				}
-				if answer == "y" {
-					a.Key = n.ApiConfig.Key
-					reused = true
+				u, e := url.Parse(a.APIHost)
+				if e == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") && u.RawQuery == "" && u.User == nil && u.Fragment == "" {
+					break
 				}
-				break
+				fmt.Fprintln(w.out, "无效面板地址，请重新输入。")
+			}
+			a.APIHost = strings.TrimRight(a.APIHost, "/")
+			existingKey := ""
+			for _, n := range d.parsed {
+				if normalizedHost(n.ApiConfig.APIHost) == normalizedHost(a.APIHost) {
+					existingKey = n.ApiConfig.Key
+					break
+				}
+			}
+			for {
+				label := "请输入面板对接API Key（输入隐藏）"
+				if existingKey != "" {
+					label += "（回车复用该面板已有Key）"
+				}
+				a.Key, err = w.ask(label, "", true)
+				if err != nil {
+					return err
+				}
+				if a.Key == "" {
+					a.Key = existingKey
+				}
+				if a.Key != "" {
+					break
+				}
+				fmt.Fprintln(w.out, "API Key不能为空，请重新输入。")
+			}
+			if firstNode {
+				fixedAPI, err = w.yesNo("是否设置固定的机场网址和API Key？(y/n)", "n")
+				if err != nil {
+					return err
+				}
+				if fixedAPI {
+					fixedConfig = a
+					fmt.Fprintln(w.out, wizardGreen+"成功固定地址"+wizardPlain)
+				}
 			}
 		}
-		if !reused {
-			a.Key, err = w.ask("面板API Key（输入隐藏）", "", true)
-			if err != nil {
-				return err
-			}
-		}
-		if a.Key == "" {
-			return fmt.Errorf("API Key不能为空")
-		}
-		a.NodeType, err = w.ask("节点协议 vmess/vless/shadowsocks/trojan/hysteria/hysteria2/tuic/anytls", "vmess", false)
-		if err != nil {
-			return err
-		}
-		a.NodeType = normalizedProtocol(a.NodeType)
-		id, e := w.ask("节点ID", "", false)
+		firstNode = false
+		coreType, protocol, id, e := w.nodeSelection()
 		if e != nil {
 			return e
 		}
-		a.NodeID, e = strconv.Atoi(id)
-		if e != nil || a.NodeID <= 0 {
-			return fmt.Errorf("节点ID必须为正整数")
-		}
+		a.NodeType, a.NodeID = protocol, id
 		if err = d.checkDuplicate(a); err != nil {
 			return err
 		}
-		defaultCore := "xray"
-		if !supportsCore(defaultCore, a.NodeType) {
-			defaultCore = "sing"
-		}
-		coreType, e := w.ask("内核 xray/sing/hysteria2", defaultCore, false)
-		if e != nil {
-			return e
-		}
-		if !supportsCore(coreType, a.NodeType) {
-			return fmt.Errorf("所选内核不支持该协议")
-		}
-		registered := false
-		for _, c := range core.RegisteredCore() {
-			if c == coreType {
-				registered = true
-			}
-		}
-		if !registered {
-			return fmt.Errorf("当前二进制未编译 %s 内核，请安装完整版", coreType)
-		}
+
 		info, e := w.fetch(&a)
 		if e != nil {
 			return fmt.Errorf("查询面板节点失败: %w", e)
@@ -532,11 +639,11 @@ func (w *nodeWizard) run(path string, replace bool) error {
 		if e = d.appendNode(a, coreType, c); e != nil {
 			return e
 		}
-		answer, e := w.ask("继续添加其他节点？y/n", "n", false)
+		more, e := w.yesNo("是否继续添加节点配置？(回车继续，输入n或no退出)", "y")
 		if e != nil {
 			return e
 		}
-		if answer != "y" {
+		if !more {
 			break
 		}
 	}
@@ -553,7 +660,7 @@ func (w *nodeWizard) run(path string, replace bool) error {
 func init() {
 	var path string
 	var replace bool
-	c := &cobra.Command{Use: "node-add", Short: "交互追加节点并自动准备证书", Args: cobra.NoArgs, RunE: func(c *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "node-add", Short: "交互追加节点并自动准备证书", SilenceUsage: true, Args: cobra.NoArgs, RunE: func(c *cobra.Command, args []string) error {
 		input := c.InOrStdin()
 		w := &nodeWizard{in: bufio.NewReader(input), input: input, out: c.OutOrStdout(), ensure: node.EnsureCertificate, fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
 			client, err := panel.New(a)
