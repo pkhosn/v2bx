@@ -11,9 +11,10 @@ var command = &cobra.Command{
 	Use: "V2bX",
 }
 
-func Run() {
+func Run() error {
 	err := command.Execute()
 	if err != nil {
 		log.WithField("err", err).Error("Execute command failed")
 	}
+	return err
 }

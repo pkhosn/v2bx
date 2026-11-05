@@ -126,3 +126,10 @@ func TestClient_ReportUserTraffic(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestClientRejectsMissingBaseConfig(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"server_port":443,"network":"tcp"}`)) })
+	if info, err := c.GetNodeInfo(); err == nil || info != nil {
+		t.Fatal("missing base_config accepted")
+	}
+}

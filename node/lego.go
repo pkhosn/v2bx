@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"encoding/json"
@@ -31,7 +32,12 @@ type Lego struct {
 	config *conf.CertConfig
 }
 
+var legoAccountMu sync.Mutex
+var dnsEnvironmentMu sync.Mutex
+
 func NewLego(config *conf.CertConfig) (*Lego, error) {
+	legoAccountMu.Lock()
+	defer legoAccountMu.Unlock()
 	user, err := NewLegoUser(path.Join(path.Dir(config.CertFile),
 		"user",
 		fmt.Sprintf("user-%s.json", config.Email)),
@@ -75,8 +81,28 @@ func (l *Lego) SetProvider() error {
 			return err
 		}
 	case "dns":
+		dnsEnvironmentMu.Lock()
+		defer dnsEnvironmentMu.Unlock()
+		previous := make(map[string]*string)
+		defer func() {
+			for k, v := range previous {
+				if v == nil {
+					os.Unsetenv(k)
+				} else {
+					os.Setenv(k, *v)
+				}
+			}
+		}()
 		for k, v := range l.config.DNSEnv {
-			os.Setenv(k, v)
+			if old, ok := os.LookupEnv(k); ok {
+				saved := old
+				previous[k] = &saved
+			} else {
+				previous[k] = nil
+			}
+			if err := os.Setenv(k, v); err != nil {
+				return err
+			}
 		}
 		p, err := dns.NewDNSChallengeProviderByName(l.config.Provider)
 		if err != nil {
@@ -161,7 +187,7 @@ func (l *Lego) writeCert(certificates *certificate.Resource) error {
 	if err != nil {
 		return fmt.Errorf("check path error: %s", err)
 	}
-	err = os.WriteFile(l.parseParams(l.config.KeyFile), certificates.PrivateKey, 0644)
+	err = os.WriteFile(l.parseParams(l.config.KeyFile), certificates.PrivateKey, 0600)
 	if err != nil {
 		return err
 	}
@@ -260,7 +286,7 @@ func (u *User) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshal json error: %s", err)
 	}
-	return os.WriteFile(path, append(data, '\n'), 0644)
+	return os.WriteFile(path, append(data, '\n'), 0600)
 }
 
 func (u *User) DecodePrivate(pemEncodedPriv string) (*ecdsa.PrivateKey, error) {

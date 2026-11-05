@@ -264,6 +264,10 @@ func (c *Client) GetNodeInfo() (node *NodeInfo, err error) {
 		node.Security = Tls
 	}
 
+	if cm.BaseConfig == nil {
+		return nil, fmt.Errorf("node configuration is missing base_config")
+	}
+
 	// parse rules and dns
 	for i := range cm.Routes {
 		var matchs []string
@@ -319,6 +323,9 @@ func (c *Client) GetNodeInfo() (node *NodeInfo, err error) {
 }
 
 func intervalToTime(i interface{}) time.Duration {
+	if i == nil {
+		return 0
+	}
 	switch reflect.TypeOf(i).Kind() {
 	case reflect.Int:
 		return time.Duration(i.(int)) * time.Second
