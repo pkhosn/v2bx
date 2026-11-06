@@ -51,6 +51,9 @@ type HttpupgradeNetworkConfig struct {
 }
 
 func getInboundOptions(tag string, info *panel.NodeInfo, c *conf.Options) (option.Inbound, error) {
+	if err := info.ValidateECH("sing"); err != nil {
+		return option.Inbound{}, err
+	}
 	addr, err := netip.ParseAddr(c.ListenIP)
 	if err != nil {
 		return option.Inbound{}, fmt.Errorf("the listen ip not vail")
@@ -81,11 +84,21 @@ func getInboundOptions(tag string, info *panel.NodeInfo, c *conf.Options) (optio
 		}
 		switch c.CertConfig.CertMode {
 		case "none", "":
+			if info.VAllss != nil && info.VAllss.TlsSettings.ECH == "custom" {
+				return option.Inbound{}, fmt.Errorf("custom ECH requires a TLS certificate")
+			}
 			break // disable
 		default:
 			tls.Enabled = true
 			tls.CertificatePath = c.CertConfig.CertFile
 			tls.KeyPath = c.CertConfig.KeyFile
+			if info.VAllss != nil && info.VAllss.TlsSettings.ECH == "custom" {
+				key, err := info.VAllss.TlsSettings.ECHKeysPEM()
+				if err != nil {
+					return option.Inbound{}, err
+				}
+				tls.ECH = &option.InboundECHOptions{Enabled: true, Key: []string{key}}
+			}
 		}
 	case panel.Reality:
 		tls.Enabled = true

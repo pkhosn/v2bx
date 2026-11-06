@@ -1,0 +1,71 @@
+{
+  "dns": {
+    "servers": [
+      {
+        "tag": "v2bx-unlock",
+        "address": "tcp://4.4.4.4",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": [
+          "geosite-netflix",
+          "geosite-disney",
+          "geosite-hbo",
+          "geosite-openai"
+        ],
+        "domain_suffix": [
+          "sora.com",
+          "openai.com",
+          "chatgpt.com",
+          "oaistatic.com",
+          "oaiusercontent.com",
+          "gemini.google.com",
+          "proactivebackend-pa.googleapis.com",
+          "robinfrontend-pa.googleapis.com",
+          "aisandbox-pa.googleapis.com",
+          "aistudio.google.com",
+          "alkalimakersuite-pa.clients6.google.com",
+          "generativelanguage.googleapis.com",
+          "anthropic.com",
+          "claude.ai",
+          "copilot.microsoft.com"
+        ],
+        "server": "v2bx-unlock"
+      }
+    ]
+  },
+  "route": {
+    "rule_set": [
+      {
+        "tag": "geosite-netflix",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-netflix.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "geosite-disney",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-disney.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "geosite-hbo",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-hbo.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "geosite-openai",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-openai.srs",
+        "download_detour": "direct"
+      }
+    ]
+  }
+}

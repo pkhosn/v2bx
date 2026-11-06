@@ -20,6 +20,9 @@ import (
 
 // BuildInbound build Inbound config for different protocol
 func buildInbound(option *conf.Options, nodeInfo *panel.NodeInfo, tag string) (*core.InboundHandlerConfig, error) {
+	if err := nodeInfo.ValidateECH("xray"); err != nil {
+		return nil, err
+	}
 	in := &coreConf.InboundDetourConfig{}
 	var err error
 	var network string

@@ -36,8 +36,8 @@
         "CertMode": "self",
         "RejectUnknownSni": false,
         "CertDomain": "example.com",
-        "CertFile": "/etc/V2bX/fullchain.cer",
-        "KeyFile": "/etc/V2bX/cert.key",
+        "CertFile": "/etc/V2bX/certs/self/example.com/fullchain.cer",
+        "KeyFile": "/etc/V2bX/certs/self/example.com/cert.key",
         "Provider": "cloudflare",
         "DNSEnv": {
           "EnvName": "env1"

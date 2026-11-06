@@ -37,8 +37,8 @@
         "CertMode": "http",
         "RejectUnknownSni": false,
         "CertDomain": "node.example.com",
-        "CertFile": "/etc/V2bX/fullchain.cer",
-        "KeyFile": "/etc/V2bX/cert.key",
+        "CertFile": "/etc/V2bX/certs/acme/node.example.com/fullchain.cer",
+        "KeyFile": "/etc/V2bX/certs/acme/node.example.com/cert.key",
         "Email": "admin@example.com"
       }
     }

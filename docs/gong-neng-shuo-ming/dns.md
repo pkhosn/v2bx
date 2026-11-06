@@ -1,5 +1,7 @@
 # Xray内核自定义DNS说明
 
+Sing 内核请查看[DNS 解锁配置（默认关闭）](sing-dns-unlock.md)。
+
 V2bX支持为不同节点设置不同的DNS策略，具体方法如下：
 
 1. 编写dns.json文件，此配置与Xray DNS配置完全相同，请查看：[https://xtls.github.io/config/dns.html](https://xtls.github.io/config/dns.html) 获取帮助。

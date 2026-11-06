@@ -628,6 +628,9 @@ func (w *nodeWizard) run(path string, replace bool) error {
 		if info == nil {
 			return fmt.Errorf("面板未返回节点配置")
 		}
+		if e := info.ValidateECH(coreType); e != nil {
+			return e
+		}
 		c, e := w.certificate(info, d, filepath.Dir(path))
 		if e != nil {
 			return e
