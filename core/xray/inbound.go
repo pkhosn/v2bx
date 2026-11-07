@@ -46,6 +46,24 @@ func buildInbound(option *conf.Options, nodeInfo *panel.NodeInfo, tag string) (*
 	if err != nil {
 		return nil, err
 	}
+
+	// Panel settings are authoritative. Keep the local setting as a fallback
+	// only for panels that do not supply ALPN (nil differs from an empty list).
+	var alpn []string
+	if nodeInfo.VAllss != nil {
+		alpn = nodeInfo.VAllss.TlsSettings.ALPN
+	}
+	if alpn == nil && option.XrayOptions != nil {
+		alpn = option.XrayOptions.TLSALPN
+	}
+	for _, protocol := range alpn {
+		if protocol == "" || len(protocol) > 255 {
+			return nil, errors.New("TLS ALPN must contain 1-255 bytes per protocol")
+		}
+		if protocol == "h3" && (len(alpn) != 1 || (network != "xhttp" && network != "splithttp") || nodeInfo.Security != panel.Tls || option.CertConfig == nil || option.CertConfig.CertMode == "none" || option.CertConfig.CertMode == "") {
+			return nil, errors.New("H3 requires XHTTP with TLS certificate and ALPN [h3]")
+		}
+	}
 	// Set network protocol
 	// Set server port
 	in.PortList = &coreConf.PortList{
@@ -113,6 +131,7 @@ func buildInbound(option *conf.Options, nodeInfo *panel.NodeInfo, tag string) (*
 					},
 				},
 				RejectUnknownSNI: option.CertConfig.RejectUnknownSni,
+				ALPN:             (*coreConf.StringList)(&alpn),
 			}
 		}
 	case panel.Reality:
