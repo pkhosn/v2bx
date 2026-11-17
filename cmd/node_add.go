@@ -515,6 +515,33 @@ func validDomain(s string) bool {
 	}
 	return true
 }
+
+func (w *nodeWizard) prepareCertificate(c *conf.CertConfig) error {
+	for {
+		fmt.Fprintln(w.out, "正在检查或申请证书；成功前不会保存配置。")
+		err := w.ensure(c)
+		if err == nil {
+			return nil
+		}
+		fmt.Fprintf(w.out, "%s证书准备失败: %v%s\n", wizardYellow, err, wizardPlain)
+		fmt.Fprintln(w.out, "已保留本次填写的信息，请检查域名解析、端口或证书配置后重试。")
+		fmt.Fprintln(w.out, "1. 重试申请或检查证书\n0. 取消本次操作（不保存配置）")
+		for {
+			answer, inputErr := w.ask("请输入选择", "0", false)
+			if inputErr != nil {
+				return fmt.Errorf("证书准备失败: %v；%w", err, inputErr)
+			}
+			if answer == "0" {
+				return fmt.Errorf("已取消，未保存配置；证书准备失败: %w", err)
+			}
+			if answer == "1" {
+				break
+			}
+			fmt.Fprintln(w.out, "无效的选择，请输入 1 重试或 0 取消。")
+		}
+	}
+}
+
 func (w *nodeWizard) run(path string, replace bool) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
@@ -535,11 +562,11 @@ func (w *nodeWizard) run(path string, replace bool) error {
 	}
 	input := original
 	if replace {
-		answer, e := w.ask("重新生成将替换所有节点与内核配置，输入 REPLACE 确认", "", false)
+		answer, e := w.ask("重新生成将替换所有节点与内核配置，输入 yes 确认（默认取消）", "", false)
 		if e != nil {
 			return e
 		}
-		if answer != "REPLACE" {
+		if !strings.EqualFold(answer, "yes") {
 			return fmt.Errorf("已取消")
 		}
 		input = nil
@@ -635,9 +662,8 @@ func (w *nodeWizard) run(path string, replace bool) error {
 		if e != nil {
 			return e
 		}
-		fmt.Fprintln(w.out, "正在检查或申请证书；成功前不会保存配置。")
-		if e = w.ensure(c); e != nil {
-			return fmt.Errorf("证书准备失败: %w", e)
+		if e = w.prepareCertificate(c); e != nil {
+			return e
 		}
 		if e = d.appendNode(a, coreType, c); e != nil {
 			return e

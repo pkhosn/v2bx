@@ -285,3 +285,126 @@ func TestLegacyNumericMenusAndFixedPanel(t *testing.T) {
 		t.Fatal("legacy selection order changed")
 	}
 }
+
+func TestWizardCertificateRetry(t *testing.T) {
+	if !strings.Contains("|"+strings.Join(core.RegisteredCore(), "|")+"|", "|xray|") {
+		t.Skip("requires xray core")
+	}
+	for _, tc := range []struct {
+		name     string
+		answers  string
+		attempts int
+		success  bool
+	}{
+		{"retry", "1\nn\n", 2, true},
+		{"invalid then retry", "bad\n1\nn\n", 2, true},
+		{"multiple failures", "1\n1\nn\n", 3, true},
+		{"cancel", "0\n", 1, false},
+		{"default cancel", "\n", 1, false},
+		{"interrupted", "", 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := filepath.Join(t.TempDir(), "config.json")
+			original := []byte(`{"Cores":[{"Type":"xray"}],"Nodes":[{"ApiHost":"https://old.example","ApiKey":"old","NodeType":"vless","NodeID":9}],"Future":true}`)
+			if err := os.WriteFile(p, original, 0600); err != nil {
+				t.Fatal(err)
+			}
+			r := strings.NewReader("https://panel.example\nsecret\nn\n1\n2\n2\n1\nnode.example.com\n\n" + tc.answers)
+			var output bytes.Buffer
+			fetches, attempts := 0, 0
+			var firstCert *conf.CertConfig
+			w := &nodeWizard{input: r, in: bufio.NewReader(r), out: &output,
+				fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
+					fetches++
+					if a.NodeID != 2 || a.Key != "secret" {
+						t.Fatal("node answers lost")
+					}
+					return &panel.NodeInfo{Security: panel.Tls}, nil
+				}, ensure: func(c *conf.CertConfig) error {
+					attempts++
+					if firstCert == nil {
+						firstCert = c
+					}
+					if c != firstCert || c.CertMode != "http" || c.CertDomain != "node.example.com" {
+						t.Fatal("certificate answers lost")
+					}
+					current, err := os.ReadFile(p)
+					if err != nil || !bytes.Equal(current, original) {
+						t.Fatal("saved before certificate preparation finished")
+					}
+					if !tc.success || attempts < tc.attempts {
+						return fmt.Errorf("DNS not ready")
+					}
+					return nil
+				}}
+			err := w.run(p, false)
+			if (err == nil) != tc.success || attempts != tc.attempts || fetches != 1 {
+				t.Fatalf("success=%v attempts=%d fetches=%d err=%v", tc.success, attempts, fetches, err)
+			}
+			current, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.success {
+				d, err := readDocument(current)
+				if err != nil || len(d.nodes) != 2 || d.parsed[1].ApiConfig.NodeID != 2 {
+					t.Fatal("retry failed to preserve existing and new nodes")
+				}
+				backup, err := os.ReadFile(p + ".bak")
+				if err != nil || !bytes.Equal(backup, original) {
+					t.Fatal("original backup lost")
+				}
+			} else {
+				if !bytes.Equal(current, original) {
+					t.Fatal("cancel changed configuration")
+				}
+				if _, err := os.Stat(p + ".bak"); !os.IsNotExist(err) {
+					t.Fatal("cancel touched backup")
+				}
+			}
+			if !strings.Contains(output.String(), "DNS not ready") {
+				t.Fatal("certificate error hidden")
+			}
+		})
+	}
+}
+
+func TestWizardReplaceConfirmation(t *testing.T) {
+	if !strings.Contains("|"+strings.Join(core.RegisteredCore(), "|")+"|", "|xray|") {
+		t.Skip("requires xray core")
+	}
+	for _, answer := range []string{"yes", "YES", "YeS", "", "y", "no", "REFLACE", "REPLACE"} {
+		t.Run("answer="+answer, func(t *testing.T) {
+			p := filepath.Join(t.TempDir(), "config.json")
+			original := []byte(`{"Cores":[{"Type":"sing"}],"Nodes":[],"Future":true}`)
+			if err := os.WriteFile(p, original, 0600); err != nil {
+				t.Fatal(err)
+			}
+			r := strings.NewReader(answer + "\nhttps://panel.example\nsecret\nn\n1\n2\n2\nn\n")
+			fetches := 0
+			w := &nodeWizard{input: r, in: bufio.NewReader(r), out: &bytes.Buffer{},
+				fetch: func(*conf.ApiConfig) (*panel.NodeInfo, error) {
+					fetches++
+					return &panel.NodeInfo{Security: panel.Reality}, nil
+				}, ensure: func(*conf.CertConfig) error { return nil }}
+			err := w.run(p, true)
+			confirmed := strings.EqualFold(answer, "yes")
+			if (err == nil) != confirmed || (fetches == 1) != confirmed {
+				t.Fatalf("confirmation result: %v fetches=%d", err, fetches)
+			}
+			current, readErr := os.ReadFile(p)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if !confirmed && !bytes.Equal(current, original) {
+				t.Fatal("cancel replaced config")
+			}
+			if confirmed {
+				d, err := readDocument(current)
+				if err != nil || len(d.nodes) != 1 || len(d.cores) != 1 || d.fields["Future"] != nil {
+					t.Fatal("confirmed replacement did not regenerate config")
+				}
+			}
+		})
+	}
+}
