@@ -153,7 +153,7 @@ func TestWizardSuccessfulAppend(t *testing.T) {
 		selection = "2\n1\n3\n"
 	}
 	if c == "hysteria2" {
-		selection = "3\n1\n"
+		selection = "3\n1\n1\n"
 	}
 	p := filepath.Join(t.TempDir(), "config.json")
 	original := []byte(`{"Cores":[],"Nodes":[],"Future":{"enabled":true}}`)
@@ -163,12 +163,18 @@ func TestWizardSuccessfulAppend(t *testing.T) {
 		if a.Key != "secret" || a.NodeID != 1 {
 			t.Fatal("wrong panel request")
 		}
-		return &panel.NodeInfo{Security: panel.Reality}, nil
+		info := &panel.NodeInfo{Security: panel.Reality}
+		if c == "hysteria2" {
+			info.Hysteria2 = &panel.Hysteria2Node{CommonNode: panel.CommonNode{ServerPort: 36005}}
+		}
+		return info, nil
 	}, ensure: func(c *conf.CertConfig) error {
 		if c.CertMode != "none" {
 			t.Fatal("REALITY requires no certificate")
 		}
 		return nil
+	}, applyHops: func([]nodeHop, map[int]bool, bool) (func(bool) error, error) {
+		return func(bool) error { return nil }, nil
 	}}
 	if err := w.run(p, false); err != nil {
 		t.Fatal(err)
@@ -255,15 +261,18 @@ func TestLegacyNumericMenusAndFixedPanel(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
 	// The original flow: panel, key, fixed panel, core, ID, protocol;
 	// Enter continues and reuses the fixed panel, then selects another core.
-	r := strings.NewReader("https://panel.example\nsecret\ny\n9\n1\nwrong\n1\n8\n3\n\n2\n2\n5\nn\n")
+	r := strings.NewReader("https://panel.example\nsecret\ny\n9\n1\nwrong\n1\n8\n3\n\n2\n2\n5\n1\nn\n")
 	out := &bytes.Buffer{}
 	requests := []conf.ApiConfig{}
 	w := &nodeWizard{input: r, in: bufio.NewReader(r), out: out,
 		fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
 			requests = append(requests, *a)
-			return &panel.NodeInfo{Security: panel.None}, nil
+			return &panel.NodeInfo{Security: panel.None, Hysteria2: &panel.Hysteria2Node{CommonNode: panel.CommonNode{ServerPort: 36005}}}, nil
 		},
 		ensure: func(*conf.CertConfig) error { return nil },
+		applyHops: func([]nodeHop, map[int]bool, bool) (func(bool) error, error) {
+			return func(bool) error { return nil }, nil
+		},
 	}
 	if err := w.run(p, false); err != nil {
 		t.Fatal(err)

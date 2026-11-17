@@ -137,11 +137,14 @@ type HysteriaNode struct {
 
 type Hysteria2Node struct {
 	CommonNode
-	Ignore_Client_Bandwidth bool   `json:"ignore_client_bandwidth"`
-	UpMbps                  int    `json:"up_mbps"`
-	DownMbps                int    `json:"down_mbps"`
-	ObfsType                string `json:"obfs"`
-	ObfsPassword            string `json:"obfs-password"`
+	// Optional subscription ports; older panels only return server_port.
+	Port                    json.RawMessage `json:"port,omitempty"`
+	MPort                   json.RawMessage `json:"mport,omitempty"`
+	Ignore_Client_Bandwidth bool            `json:"ignore_client_bandwidth"`
+	UpMbps                  int             `json:"up_mbps"`
+	DownMbps                int             `json:"down_mbps"`
+	ObfsType                string          `json:"obfs"`
+	ObfsPassword            string          `json:"obfs-password"`
 }
 
 type RawDNS struct {

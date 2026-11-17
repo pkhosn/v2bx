@@ -2,13 +2,13 @@
 
 需要包含 `node-add` 命令的新二进制及新版管理脚本。只有更新脚本、仍使用旧 Release 二进制时，脚本会提示升级并停止。
 
-- 管理菜单 **18** 或 `v2bx add`：追加一个或多个节点，保留原有节点、内核与自定义字段。
+- 管理菜单 **17** 或 `v2bx add`：追加一个或多个节点，保留原有节点、内核与自定义字段。
 - 管理菜单 **15** 或 `v2bx generate`：重新生成配置，必须输入 `yes` 确认（忽略大小写），回车或其他输入均取消。
 - 首次安装使用同一向导。直接运行：`/usr/local/V2bX/V2bX node-add --config /etc/V2bX/config.json`。
 
 交互沿用旧管理脚本：输入面板信息、选择是否固定面板信息，再按数字选择内核、输入 Node ID、按数字选择协议；证书依次选择模式、输入域名。连续添加时回车继续，固定的面板信息自动复用。数字选项、节点 ID、域名或邮箱格式有误时原地重试。
 
-向导查询面板节点信息确定 TLS 状态，REALITY 和无 TLS 节点不申请普通证书。面板 API Key 与 Cloudflare Token 在终端中隐藏输入。
+向导查询面板节点信息确定 TLS 状态，REALITY 和无 TLS 节点不申请普通证书。面板 API Key 与 Cloudflare Token 在终端中隐藏输入。 HY2 的端口跳跃也在此向导完成，已有 HY2 节点可输入相同 ID 仅调整跳跃配置，详见[说明](gong-neng-shuo-ming/hy-port-hop.md)。
 
 HTTP 模式需要域名，不需要 Cloudflare Token。ACME 联系邮箱可留空；已有正常邮箱会作为默认值，不再使用旧脚本的占位邮箱。lego 注册实现支持不提供邮箱。域名必须直连本机，公网 TCP 80 必须可用于 ACME HTTP 验证；向导不会自动关闭防火墙或停止占用端口的服务。HTTP 无法使用时可以选择 Cloudflare DNS 模式，输入具有对应域名 Zone Read 与 DNS Edit 权限的 API Token。联系邮箱不是 Cloudflare 登录凭据。已有 Cloudflare 凭据可明确选择复用。
 

@@ -107,7 +107,7 @@ func checkHopPorts(a, b int) error {
 	return nil
 }
 func hopUnitText(nft string) string {
-	return fmt.Sprintf("[Unit]\nDescription=V2bX HY2 UDP port hopping\nAfter=network-pre.target nftables.service\nBefore=V2bX.service\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=%s -f %s\nExecStop=%s delete table inet %s\n\n[Install]\nWantedBy=multi-user.target\n", nft, hopRules, nft, hopTable)
+	return fmt.Sprintf("[Unit]\nDescription=V2bX HY2 UDP port hopping\nAfter=network-pre.target nftables.service\nBefore=V2bX.service\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStartPre=-%s delete table inet %s\nExecStart=%s -f %s\nExecStop=%s delete table inet %s\n\n[Install]\nWantedBy=multi-user.target\n", nft, hopTable, nft, hopRules, nft, hopTable)
 }
 func enableHop(a, b, target int, family string) error {
 	if _, e := os.Stat(hopService); !os.IsNotExist(e) {

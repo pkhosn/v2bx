@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -241,11 +242,14 @@ func saveDocument(path string, original, data []byte) error {
 }
 
 type nodeWizard struct {
-	in     *bufio.Reader
-	out    io.Writer
-	input  io.Reader
-	fetch  func(*conf.ApiConfig) (*panel.NodeInfo, error)
-	ensure func(*conf.CertConfig) error
+	in               *bufio.Reader
+	out              io.Writer
+	input            io.Reader
+	fetch            func(*conf.ApiConfig) (*panel.NodeInfo, error)
+	ensure           func(*conf.CertConfig) error
+	applyHops        func([]nodeHop, map[int]bool, bool) (func(bool) error, error)
+	loadHop          func(int) (*nodeHop, error)
+	checkHopListener func(int) (string, error)
 }
 
 // Match the existing management script's ANSI palette.
@@ -582,6 +586,7 @@ func (w *nodeWizard) run(path string, replace bool) error {
 	fixedAPI := false
 	var fixedConfig conf.ApiConfig
 	firstNode := true
+	touchedHops := make(map[int]bool)
 	for {
 		a := conf.ApiConfig{Timeout: 30}
 		if fixedAPI {
@@ -644,8 +649,24 @@ func (w *nodeWizard) run(path string, replace bool) error {
 			return e
 		}
 		a.NodeType, a.NodeID = protocol, id
+		existing := -1
 		if err = d.checkDuplicate(a); err != nil {
-			return err
+			if protocol != "hysteria2" {
+				return err
+			}
+			for i, n := range d.parsed {
+				if normalizedHost(n.ApiConfig.APIHost) == normalizedHost(a.APIHost) && n.ApiConfig.NodeID == id && normalizedProtocol(n.ApiConfig.NodeType) == protocol {
+					existing = i
+					break
+				}
+			}
+			ok, e := w.yesNo("该 HY2 节点已存在，是否仅调整端口跳跃（保留节点、内核及证书）？(y/n)", "n")
+			if e != nil {
+				return e
+			}
+			if !ok {
+				return fmt.Errorf("已取消，未保存配置")
+			}
 		}
 
 		info, e := w.fetch(&a)
@@ -658,15 +679,57 @@ func (w *nodeWizard) run(path string, replace bool) error {
 		if e := info.ValidateECH(coreType); e != nil {
 			return e
 		}
-		c, e := w.certificate(info, d, filepath.Dir(path))
-		if e != nil {
-			return e
+		if existing < 0 {
+			c, e := w.certificate(info, d, filepath.Dir(path))
+			if e != nil {
+				return e
+			}
+			if e = w.prepareCertificate(c); e != nil {
+				return e
+			}
+			if e = d.appendNode(a, coreType, c); e != nil {
+				return e
+			}
 		}
-		if e = w.prepareCertificate(c); e != nil {
-			return e
-		}
-		if e = d.appendNode(a, coreType, c); e != nil {
-			return e
+		if protocol == "hysteria2" {
+			index := existing
+			if index < 0 {
+				index = len(d.nodes) - 1
+			}
+			old, e := documentHop(d.nodes[index])
+			if e != nil {
+				return e
+			}
+			if old == nil && w.loadHop != nil && info.Hysteria2 != nil {
+				old, e = w.loadHop(info.Hysteria2.ServerPort)
+				if e != nil {
+					return e
+				}
+			}
+			h, e := w.configureNodeHop(info, old)
+			if e != nil {
+				return e
+			}
+			if h != nil && existing >= 0 && d.parsed[index].Options.ListenIP != "0.0.0.0" {
+				return fmt.Errorf("端口跳跃仅支持 IPv4 0.0.0.0 监听")
+			}
+			if h != nil && existing >= 0 && w.checkHopListener != nil {
+				if _, e = w.checkHopListener(h.Target); e != nil {
+					return e
+				}
+			}
+			if h != nil && existing < 0 {
+				if e = checkHopPorts(h.Target, h.Target); e != nil {
+					return fmt.Errorf("新节点监听端口无法使用: %w", e)
+				}
+			}
+			if old != nil {
+				touchedHops[old.Target] = true
+			}
+			touchedHops[info.Hysteria2.ServerPort] = true
+			if e = d.setHop(index, h); e != nil {
+				return e
+			}
 		}
 		more, e := w.yesNo("是否继续添加节点配置？(回车继续，输入n或no退出)", "y")
 		if e != nil {
@@ -680,8 +743,50 @@ func (w *nodeWizard) run(path string, replace bool) error {
 	if err != nil {
 		return err
 	}
-	if err = saveDocument(path, original, data); err != nil {
+	var hops []nodeHop
+	for _, raw := range d.nodes {
+		h, e := documentHop(raw)
+		if e != nil {
+			return e
+		}
+		if h != nil {
+			hops = append(hops, *h)
+		}
+	}
+	if _, err = renderNodeHops(hops); err != nil {
 		return err
+	}
+	for {
+		var finish func(bool) error
+		if w.applyHops != nil {
+			finish, err = w.applyHops(hops, touchedHops, replace)
+		} else if len(hops) > 0 || len(touchedHops) > 0 {
+			return fmt.Errorf("缺少端口跳跃配置处理器")
+		}
+		if err == nil {
+			saveErr := saveDocument(path, original, data)
+			if finish != nil {
+				if e := finish(saveErr == nil); e != nil {
+					return fmt.Errorf("配置保存结果 %v；跳跃规则回滚失败: %w", saveErr, e)
+				}
+			}
+			if saveErr != nil {
+				return saveErr
+			}
+			break
+		}
+		fmt.Fprintf(w.out, "端口跳跃配置失败: %v\n", err)
+		var rollbackErr *hopRollbackError
+		if errors.As(err, &rollbackErr) {
+			return err
+		}
+		answer, e := w.ask("输入 1 重试，0 取消（未保存配置）", "0", false)
+		if e != nil {
+			return e
+		}
+		if answer != "1" {
+			return fmt.Errorf("端口跳跃配置失败，未保存配置: %w", err)
+		}
 	}
 	fmt.Fprintf(w.out, "配置已保存，共 %d 个节点；原配置备份为 %s.bak。应用配置会短暂重载全部节点。\n", len(d.nodes), path)
 	return nil
@@ -689,9 +794,9 @@ func (w *nodeWizard) run(path string, replace bool) error {
 func init() {
 	var path string
 	var replace bool
-	c := &cobra.Command{Use: "node-add", Short: "交互追加节点并自动准备证书", SilenceUsage: true, Args: cobra.NoArgs, RunE: func(c *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "node-add", Short: "交互配置节点、自动证书和 HY2 端口跳跃", SilenceUsage: true, Args: cobra.NoArgs, RunE: func(c *cobra.Command, args []string) error {
 		input := c.InOrStdin()
-		w := &nodeWizard{in: bufio.NewReader(input), input: input, out: c.OutOrStdout(), ensure: node.EnsureCertificate, fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
+		w := &nodeWizard{in: bufio.NewReader(input), input: input, out: c.OutOrStdout(), ensure: node.EnsureCertificate, applyHops: newHopManager().begin, loadHop: legacyNodeHop, checkHopListener: hopListener, fetch: func(a *conf.ApiConfig) (*panel.NodeInfo, error) {
 			client, err := panel.New(a)
 			if err != nil {
 				return nil, err

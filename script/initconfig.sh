@@ -4,8 +4,8 @@
 # certificate preparation and atomic updates use the same implementation.
 run_node_wizard() {
     local binary=/usr/local/V2bX/V2bX
-    if ! "$binary" node-add --help 2>/dev/null | grep -q -- '--replace'; then
-        echo "当前 V2bX 二进制不支持节点追加，请先更新至包含 node-add 的版本。"
+    if ! "$binary" node-add --help 2>/dev/null | grep -q -- 'HY2 端口跳跃'; then
+        echo "当前 V2bX 二进制不支持整合端口跳跃的节点向导，请先更新 V2bX。"
         return 1
     fi
     if "$binary" node-add --config /etc/V2bX/config.json "$@"; then
