@@ -93,7 +93,7 @@ func (w *nodeWizard) configureNodeHop(info *panel.NodeInfo, old *nodeHop) (*node
 		return nil, fmt.Errorf("面板未返回 Hysteria2 配置，请确认节点版本为 HY2")
 	}
 	target := info.Hysteria2.ServerPort
-	fmt.Fprintf(w.out, "HY2 实际 UDP 监听端口：%d\n", target)
+	fmt.Fprintf(w.out, "服务端口（V2bX 实际 UDP 监听端口）：%d\n", target)
 	panelRange, err := panelHopRange(info)
 	if err != nil {
 		fmt.Fprintf(w.out, "%v，请手动填写正确范围或选择不启用。\n", err)
@@ -102,10 +102,10 @@ func (w *nodeWizard) configureNodeHop(info *panel.NodeInfo, old *nodeHop) (*node
 	fallback := ""
 	if old != nil {
 		fallback = fmt.Sprintf("%d-%d", old.Start, old.End)
-		fmt.Fprintf(w.out, "当前跳跃范围：%s → %d\n", fallback, old.Target)
+		fmt.Fprintf(w.out, "当前连接端口范围：%s → 服务端口：%d\n", fallback, old.Target)
 	}
 	if panelRange != "" {
-		fmt.Fprintf(w.out, "面板跳跃范围：%s\n", panelRange)
+		fmt.Fprintf(w.out, "面板连接端口范围：%s\n", panelRange)
 		prompt := "是否自动配置该范围的端口跳跃？(y/n)"
 		if old != nil {
 			prompt = "是否使用面板范围配置跳跃？（输入 n 关闭该节点跳跃）(y/n)"
@@ -115,17 +115,17 @@ func (w *nodeWizard) configureNodeHop(info *panel.NodeInfo, old *nodeHop) (*node
 			return nil, err
 		}
 		if !ok {
-			fmt.Fprintln(w.out, "未启用跳跃；如客户端仍使用该范围，将无法连接，请同步修改面板订阅。")
+			fmt.Fprintln(w.out, "未启用端口跳跃；面板连接端口应与服务端口一致，否则客户端可能无法连接。")
 			return nil, nil
 		}
 		fallback = panelRange
 	} else {
-		fmt.Fprintln(w.out, "面板未下发跳跃范围；若订阅配置了范围，请选择手动填写相同范围。")
+		fmt.Fprintln(w.out, "面板未下发连接端口范围；请手动填写面板中设置的连接端口范围。")
 		choice := "1"
 		if old != nil {
 			choice = "2"
 		}
-		action, err := w.choose("HY2 端口跳跃设置", []string{"不启用（已有映射将关闭）", "手动填写范围并自动配置"}, []string{"off", "manual"}, choice)
+		action, err := w.choose("HY2 端口跳跃设置", []string{"不启用（已有映射将关闭）", "填写连接端口范围并自动配置"}, []string{"off", "manual"}, choice)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func (w *nodeWizard) configureNodeHop(info *panel.NodeInfo, old *nodeHop) (*node
 	for {
 		value := fallback
 		if panelRange == "" {
-			value, err = w.ask("请输入与面板订阅一致的跳跃端口范围", fallback, false)
+			value, err = w.ask("请输入面板的连接端口范围（例如 30000-30999，最多 1000 个）", fallback, false)
 			if err != nil {
 				return nil, err
 			}
@@ -147,7 +147,7 @@ func (w *nodeWizard) configureNodeHop(info *panel.NodeInfo, old *nodeHop) (*node
 			e = h.validate()
 		}
 		if e == nil {
-			fmt.Fprintf(w.out, "将自动配置 UDP %d-%d → %d，并设置开机恢复。云安全组需放行同一 UDP 范围。\n", a, b, target)
+			fmt.Fprintf(w.out, "将自动配置：连接端口 UDP %d-%d → 服务端口 UDP %d，并设置开机恢复。云安全组需放行连接端口范围。\n", a, b, target)
 			return h, nil
 		}
 		if panelRange != "" {

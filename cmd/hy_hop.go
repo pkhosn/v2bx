@@ -28,8 +28,11 @@ func hopRange(s string) (int, int, error) {
 	}
 	a, e := strconv.Atoi(p[0])
 	b, e2 := strconv.Atoi(p[1])
-	if e != nil || e2 != nil || a < 1024 || b > 65535 || b < a || b-a >= 1000 {
-		return 0, 0, fmt.Errorf("范围须在 1024-65535，最多 1000 个端口")
+	if e != nil || e2 != nil || a < 1024 || b > 65535 || b < a {
+		return 0, 0, fmt.Errorf("连接端口范围须在 1024-65535，结束端口不能小于起始端口")
+	}
+	if b-a >= 1000 {
+		return 0, 0, fmt.Errorf("连接端口范围 %d-%d 共 %d 个端口，最多支持 1000 个；例如 30000-30999。请同时修改面板的连接端口范围", a, b, b-a+1)
 	}
 	return a, b, nil
 }
